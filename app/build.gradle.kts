@@ -40,8 +40,6 @@ android {
 }
 
 dependencies {
-    implementation(libs.litert)
-    implementation(libs.litert.support.api)
     val camerax_version = "1.2.2"
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -50,7 +48,9 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
 //    implementation(org.tensorflow.lite.task.vision.detector.ObjectDetector);
-    implementation(libs.tensorflow.lite.task.vision)
+    implementation("org.tensorflow:tensorflow-lite:+")
+    implementation("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
+
 // org.tensorflow.lite.task.vision.detector.ObjectDetector
     // The following line is optional, as the core library is included indirectly by camera-camera2
 

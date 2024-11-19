@@ -35,19 +35,26 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
+import android.widget.ImageView
 import androidx.camera.core.ImageCapture.OnImageCapturedCallback
 
+import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import com.example.musiccam.databinding.ActivityMainBinding
 //import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.task.vision.detector.Detection
 import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
     private lateinit var classifier: TFLiteClassifier
     private lateinit var viewBinding: ActivityMainBinding
-
+    private lateinit var inputImageView: ImageView
     private var imageCapture: ImageCapture? = null
 
     private var videoCapture: VideoCapture<Recorder>? = null
@@ -119,13 +126,12 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestPermissions()
         }
-
         // Set up the listeners for take photo and video capture buttons
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
-        classifier = TFLiteClassifier(assets, "finetuned_circle.tflite")
+        classifier = TFLiteClassifier(assets, "mobilenet_note_classifier.tflite")
     }
 
     private val activityResultLauncher =
@@ -188,6 +194,7 @@ class MainActivity : AppCompatActivity() {
 
                     output.savedUri?.let { uri ->
                         val bitmap = uriToBitmap(uri)
+                        runObjectDetection(bitmap)
                         classifyImage(bitmap)  // Call the classifyImage function with the Bitmap
                     }
                 }
@@ -228,18 +235,59 @@ class MainActivity : AppCompatActivity() {
     private fun runObjectDetection(bitmap: Bitmap) {
         //TODO: Add object detection code here
         val image = TensorImage.fromBitmap(bitmap)
+        val options = ObjectDetector.ObjectDetectorOptions.builder()
+            .setMaxResults(5)
+            .setScoreThreshold(0.5f)
+            .build()
+        try {
+            val detector = ObjectDetector.createFromFileAndOptions(
+                this, // the application context
+                "finetuned_circle_with_metadata.tflite", // must be same as the filename in assets folder
+                options)
 
-//        val options = ObjectDetector.ObjectDetectorOptions.builder()
-//            .setMaxResults(5)
-//            .setScoreThreshold(0.5f)
-//            .build()
-//        val detector = ObjectDetector.createFromFileAndOptions(
-//            this, // the application context
-//            "model.tflite", // must be same as the filename in assets folder
-//            options
-//        )
+                val results = detector.detect(image)
+                debugPrint(results)
+                // TODO take this and draw
+//                val resultToDisplay = results.map {
+//                    // Get the top-1 category and craft the display text
+//                    val category = it.categories.first()
+//                    val text = "${category.label}, ${category.score.times(100).toInt()}%"
+//
+//                    // Create a data object to display the detection result
+//                    DetectionResult(it.boundingBox, text)
+//                }
+                // Draw the detection result on the bitmap and show it.
+//                val imgWithResult = drawDetectionResult(bitmap, resultToDisplay)
+//                runOnUiThread {
+//                    inputImageView.setImageBitmap(imgWithResult)
+//                }
+
+        }catch (e: Exception) {
+            val testval = null
+        }
+
+
+
 
     }
+
+    private fun debugPrint(results : List<Detection>) {
+        for ((i, obj) in results.withIndex()) {
+            val box = obj.boundingBox
+
+            Log.d(TAG, "Detected object: ${i} ")
+            Log.d(TAG, "  boundingBox: (${box.left}, ${box.top}) - (${box.right},${box.bottom})")
+
+            for ((j, category) in obj.categories.withIndex()) {
+                Log.d(TAG, "    Label $j: ${category.label}")
+                val confidence: Int = category.score.times(100).toInt()
+                Log.d(TAG, "    Confidence: ${confidence}%")
+            }
+        }
+
+
+    }
+
 
 
     private fun captureVideo() {}
@@ -310,5 +358,57 @@ class MainActivity : AppCompatActivity() {
                 }
             }.toTypedArray()
     }
+    /**
+     * drawDetectionResult(bitmap: Bitmap, detectionResults: List<DetectionResult>
+     *      Draw a box around each objects and show the object's name.
+     */
+    private fun drawDetectionResult(
+        bitmap: Bitmap,
+        detectionResults: List<DetectionResult>
+    ): Bitmap {
+        val outputBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(outputBitmap)
+        val pen = Paint()
+        pen.textAlign = Paint.Align.LEFT
 
+        detectionResults.forEach {
+            // draw bounding box
+            pen.color = Color.RED
+            pen.strokeWidth = 8F
+            pen.style = Paint.Style.STROKE
+            val box = it.boundingBox
+            canvas.drawRect(box, pen)
+
+
+            val tagSize = Rect(0, 0, 0, 0)
+
+            // calculate the right font size
+            pen.style = Paint.Style.FILL_AND_STROKE
+            pen.color = Color.YELLOW
+            pen.strokeWidth = 2F
+
+            pen.textSize = 5F
+            pen.getTextBounds(it.text, 0, it.text.length, tagSize)
+            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
+
+            // adjust the font size so texts are inside the bounding box
+            if (fontSize < pen.textSize) pen.textSize = fontSize
+
+            var margin = (box.width() - tagSize.width()) / 2.0F
+            if (margin < 0F) margin = 0F
+            canvas.drawText(
+                it.text, box.left + margin,
+                box.top + tagSize.height().times(1F), pen
+            )
+        }
+        return outputBitmap
+    }
 }
+
+/**
+ * DetectionResult
+ *      A class to store the visualization info of a detected object.
+ */
+}
+data class DetectionResult(val boundingBox: RectF, val text: String)
+

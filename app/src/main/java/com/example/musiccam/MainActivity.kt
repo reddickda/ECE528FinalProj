@@ -51,6 +51,7 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.Detection
 import java.io.IOException
 
+
 class MainActivity : AppCompatActivity() {
     private lateinit var classifier: TFLiteClassifier
     private lateinit var viewBinding: ActivityMainBinding
@@ -119,7 +120,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-
+        inputImageView = findViewById(R.id.inputImageView)
         // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
@@ -247,6 +248,7 @@ class MainActivity : AppCompatActivity() {
 
                 val results = detector.detect(image)
                 debugPrint(results)
+                drawBoundingBoxes(bitmap,results, inputImageView)
                 // TODO take this and draw
 //                val resultToDisplay = results.map {
 //                    // Get the top-1 category and craft the display text
@@ -358,57 +360,98 @@ class MainActivity : AppCompatActivity() {
                 }
             }.toTypedArray()
     }
+
+    fun drawBoundingBoxes(
+        imageBitmap: Bitmap,
+        results: List<Detection>, // Replace with your result class
+        imageView: ImageView
+    ) {
+        // Create a mutable copy of the bitmap
+        val mutableBitmap = imageBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(mutableBitmap)
+
+        // Paint for bounding boxes
+        val boxPaint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.STROKE
+            strokeWidth = 5f
+        }
+
+        // Paint for labels
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 40f
+            isAntiAlias = true
+            setShadowLayer(2f, 1f, 1f, Color.BLACK)
+        }
+
+        // Iterate through detected objects
+        for ((i, obj) in results.withIndex()) {
+            val box = obj.boundingBox // Assuming boundingBox is RectF
+            canvas.drawRect(box, boxPaint) // Draw bounding box
+
+            // Draw labels
+            for ((j, category) in obj.categories.withIndex()) {
+                val labelText = "${category.label} (${(category.score * 100).toInt()}%)"
+                canvas.drawText(labelText, box.left, box.top - 10 - (j * 40), textPaint)
+            }
+        }
+
+        // Set the modified bitmap to the ImageView
+        imageView.setImageBitmap(mutableBitmap)
+    }
+
     /**
      * drawDetectionResult(bitmap: Bitmap, detectionResults: List<DetectionResult>
      *      Draw a box around each objects and show the object's name.
      */
-    private fun drawDetectionResult(
-        bitmap: Bitmap,
-        detectionResults: List<DetectionResult>
-    ): Bitmap {
-        val outputBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(outputBitmap)
-        val pen = Paint()
-        pen.textAlign = Paint.Align.LEFT
-
-        detectionResults.forEach {
-            // draw bounding box
-            pen.color = Color.RED
-            pen.strokeWidth = 8F
-            pen.style = Paint.Style.STROKE
-            val box = it.boundingBox
-            canvas.drawRect(box, pen)
-
-
-            val tagSize = Rect(0, 0, 0, 0)
-
-            // calculate the right font size
-            pen.style = Paint.Style.FILL_AND_STROKE
-            pen.color = Color.YELLOW
-            pen.strokeWidth = 2F
-
-            pen.textSize = 5F
-            pen.getTextBounds(it.text, 0, it.text.length, tagSize)
-            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
-
-            // adjust the font size so texts are inside the bounding box
-            if (fontSize < pen.textSize) pen.textSize = fontSize
-
-            var margin = (box.width() - tagSize.width()) / 2.0F
-            if (margin < 0F) margin = 0F
-            canvas.drawText(
-                it.text, box.left + margin,
-                box.top + tagSize.height().times(1F), pen
-            )
-        }
-        return outputBitmap
-    }
+//    private fun drawDetectionResult(
+//        bitmap: Bitmap,
+//        detectionResults: List<DetectionResult>
+//    ): Bitmap {
+//        val outputBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+//        val canvas = Canvas(outputBitmap)
+//        val pen = Paint()
+//        pen.textAlign = Paint.Align.LEFT
+//
+//        detectionResults.forEach {
+//            // draw bounding box
+//            pen.color = Color.RED
+//            pen.strokeWidth = 8F
+//            pen.style = Paint.Style.STROKE
+//            val box = it.boundingBox
+//            canvas.drawRect(box, pen)
+//
+//
+//            val tagSize = Rect(0, 0, 0, 0)
+//
+//            // calculate the right font size
+//            pen.style = Paint.Style.FILL_AND_STROKE
+//            pen.color = Color.YELLOW
+//            pen.strokeWidth = 2F
+//
+//            pen.textSize = 5F
+//            pen.getTextBounds(it.text, 0, it.text.length, tagSize)
+//            val fontSize: Float = pen.textSize * box.width() / tagSize.width()
+//
+//            // adjust the font size so texts are inside the bounding box
+//            if (fontSize < pen.textSize) pen.textSize = fontSize
+//
+//            var margin = (box.width() - tagSize.width()) / 2.0F
+//            if (margin < 0F) margin = 0F
+//            canvas.drawText(
+//                it.text, box.left + margin,
+//                box.top + tagSize.height().times(1F), pen
+//            )
+//        }
+//        return outputBitmap
+//    }
 }
 
 /**
  * DetectionResult
  *      A class to store the visualization info of a detected object.
  */
-}
-data class DetectionResult(val boundingBox: RectF, val text: String)
+//}
+//data class DetectionResult(val boundingBox: RectF, val text: String)
 

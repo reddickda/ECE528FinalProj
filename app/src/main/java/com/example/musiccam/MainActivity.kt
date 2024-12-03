@@ -1,60 +1,49 @@
 package com.example.musiccam
 
+//import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.provider.MediaStore
-import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.ImageCapture
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.core.Preview
-import androidx.camera.core.CameraSelector
-import android.util.Log
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.ImageProxy
-import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.MediaStoreOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.VideoRecordEvent
-import androidx.core.content.PermissionChecker
-import java.nio.ByteBuffer
-import java.text.SimpleDateFormat
-import java.util.Locale
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.MediaStore
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import androidx.camera.core.ImageCapture.OnImageCapturedCallback
-import java.io.File
-import java.io.FileOutputStream
-
-import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.core.content.ContextCompat
 import com.example.musiccam.databinding.ActivityMainBinding
-//import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.vision.detector.Detection
+import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 
 class MainActivity : AppCompatActivity() {
@@ -225,7 +214,9 @@ class MainActivity : AppCompatActivity() {
                         val bitmap = uriToBitmap(uri)
                         Toast.makeText(this@MainActivity, "Processing image...", Toast.LENGTH_SHORT).show()
 
-                        runObjectDetection(bitmap)
+                        val resizedPhoto = Bitmap.createScaledBitmap(bitmap, 320, 320, true);
+
+                        runObjectDetection(bitmap, resizedPhoto)
                         //classifyImage(bitmap)  // Call the classifyImage function with the Bitmap
                     }
                 }
@@ -273,22 +264,22 @@ class MainActivity : AppCompatActivity() {
     /**
      * TFLite Object Detection Function
      */
-    private fun runObjectDetection(bitmap: Bitmap) {
+    private fun runObjectDetection(origbitmap: Bitmap, resizedBitmap: Bitmap) {
         //TODO: Add object detection code here
 //        val image = TensorImage.fromBitmap(bitmap)
         val options = ObjectDetector.ObjectDetectorOptions.builder()
-            .setMaxResults(5)
-            .setScoreThreshold(0.5f)
+            .setMaxResults(10)
+            .setScoreThreshold(0.1f)
             .build()
         try {
             val detector = ObjectDetector.createFromFileAndOptions(
                 this, // the application context
-                "finetuned_circle_with_metadata.tflite", // must be same as the filename in assets folder
+                "finetuned_for_testing.tflite", // must be same as the filename in assets folder
                 options
             )
-            val rotatedBitmap = rotateBitmap(bitmap, 90f)
+//            val rotatedBitmap = rotateBitmap(origbitmap, 90f)
             // val image = TensorImage.fromBitmap(rotatedBitmap)
-            val greyScaleBitmap = preprocessToGrayscale(bitmap)
+//            val greyScaleBitmap = preprocessToGrayscale(origbitmap)
 //            val directory = File(applicationContext.filesDir, "saved_images")
 //            val savedFile = saveImageToFile(greyScaleBitmap, directory, "grayscale_image")
 //            if (savedFile != null) {
@@ -298,19 +289,22 @@ class MainActivity : AppCompatActivity() {
 //                Toast.makeText(this, "Failed to save image.", Toast.LENGTH_SHORT).show()
 //            }
 //            val bwBitmap = convertToBlackAndWhite(bitmap, threshold = 80)
-            val bwBitmap = convertToVeryDarkBlackAndWhite(bitmap, threshold = 80)
+            val bwBitmap = convertToVeryDarkBlackAndWhite(resizedBitmap, threshold = 80)
 
             val bwImage = TensorImage.fromBitmap(bwBitmap)
 
             val results = detector.detect(bwImage)
-            //debugPrint(results)
+            debugPrint(results)
 
             //val imageView: ImageView = findViewById(R.id.inputImageView)
             imageViewEdited.setImageBitmap(bwBitmap)
-            imageViewOriginal.setImageBitmap(bitmap)
+            imageViewOriginal.setImageBitmap(origbitmap)
             Toast.makeText(this@MainActivity, "Drawing Bounding Boxes...", Toast.LENGTH_SHORT).show()
 
             drawBoundingBoxes(bwBitmap, results, imageViewEdited)
+
+//            checkCircleAndLineDetected();
+
 
             Toast.makeText(this@MainActivity, "Ready to view...", Toast.LENGTH_SHORT).show()
 
@@ -414,6 +408,9 @@ class MainActivity : AppCompatActivity() {
         results: List<Detection>, // Replace with your result class
         imageView: ImageView
     ) {
+
+        val scaleX = imageBitmap.width.toFloat() / 320
+        val scaleY = imageBitmap.height.toFloat() / 320
         // Create a mutable copy of the bitmap
         val mutableBitmap = imageBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(mutableBitmap)
@@ -422,13 +419,13 @@ class MainActivity : AppCompatActivity() {
         val boxPaint = Paint().apply {
             color = Color.RED
             style = Paint.Style.STROKE
-            strokeWidth = 10f
+            strokeWidth = 1f
         }
 
         // Paint for labels
         val textPaint = Paint().apply {
             color = Color.BLUE
-            textSize = 100f
+            textSize = 10f
             isAntiAlias = true
             setShadowLayer(2f, 1f, 1f, Color.BLACK)
         }
@@ -436,15 +433,23 @@ class MainActivity : AppCompatActivity() {
         // Iterate through detected objects
         for ((i, obj) in results.withIndex()) {
             val box = obj.boundingBox // Assuming boundingBox is RectF
-            val filteredCategories = obj.categories.filter { it.score >= 0.8 }
+
+            val scaledBox = RectF(
+                box.left * scaleX,
+                box.top * scaleY,
+                box.right * scaleX,
+                box.bottom * scaleY
+            )
+
+            val filteredCategories = obj.categories.filter { it.score >= 0.3 }
 
             if (filteredCategories.isNotEmpty()) {
-                canvas.drawRect(box, boxPaint) // Draw bounding box
+                canvas.drawRect(scaledBox, boxPaint) // Draw bounding box
 
                 // Draw labels
                 for ((j, category) in filteredCategories.withIndex()) {
                     val labelText = "${category.label} (${(category.score * 100).toInt()}%)"
-                    canvas.drawText(labelText, box.left, box.top - 10 - (j * 40), textPaint)
+                    canvas.drawText(labelText, scaledBox.left, scaledBox.top - 10 - (j * 40), textPaint)
                 }
             }
         }
@@ -539,6 +544,58 @@ class MainActivity : AppCompatActivity() {
         bwBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         return bwBitmap
     }
+
+    fun checkCircleAndLineDetected(detections: List<Detection>): Boolean {
+        // Flags to track detections
+        var circleDetected = false
+        var lineDetected = false
+
+        for ((i, obj) in detections.withIndex()) {
+            val box = obj.boundingBox // Assuming boundingBox is RectF
+
+            val filteredCategories = obj.categories.filter { it.score >= 0.3 }
+
+
+            if (filteredCategories.isNotEmpty()) {
+                // Draw labels
+                for ((j, category) in filteredCategories.withIndex()) {
+                    if (category.label == "circle")
+                        circleDetected = true
+                    else if (category.label == "line")
+                        lineDetected = true
+                    if (circleDetected && lineDetected) return true
+                }
+            }
+        }
+        return circleDetected && lineDetected
+    }
+
+
+    // Check if a circle overlaps with any lines
+    fun checkCircleOverlapWithLines(
+        circleBox: RectF,
+        lineBoxes: List<RectF>
+    ): String? {
+        // Step 1: Sort the lines by their Y position
+        val sortedLines = lineBoxes.sortedBy { it.top }
+
+        // Step 2: Check overlap and determine which line overlaps
+        for ((index, lineBox) in sortedLines.withIndex()) {
+            if (RectF.intersects(circleBox, lineBox)) {
+                // Return the overlapping line's position
+                return when (index) {
+                    0 -> "Top Line"
+                    1 -> "Middle Line"
+                    2 -> "Bottom Line"
+                    else -> "Line $index"
+                }
+            }
+        }
+
+        // No overlap found
+        return null
+    }
+
 
 
 

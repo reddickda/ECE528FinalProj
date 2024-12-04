@@ -303,8 +303,56 @@ class MainActivity : AppCompatActivity() {
 
             drawBoundingBoxes(bwBitmap, results, imageViewEdited)
 
-//            checkCircleAndLineDetected();
+//            val (circleRect, lineRect) = getCircleAndLineRects(results)
+//
+//            if (circleRect != null && lineRect != null) {
+//                println("Circle detected at: $circleRect")
+//                println("Line detected at: $lineRect")
+//                Toast.makeText(this@MainActivity, "circle and line detected", Toast.LENGTH_SHORT).show()
+//
+//            } else {
+//                println("Circle or line not detected.")
+//                Toast.makeText(this@MainActivity, "circle and line NOT detected", Toast.LENGTH_SHORT).show()
+//            }
 
+//            val (circleRect, lineRects) = getCircleAndFiveLinesRects(mockDetections)
+//
+//            if (circleRect != null && lineRects != null) {
+//                println("Circle detected at: $circleRect")
+//                println("Lines detected at:")
+//                lineRects.forEach { println(it) }
+//            } else {
+//                println("Missing circle or fewer than 5 lines detected.")
+//            }
+
+            val (circleRect, sortedLines, overlappingLineIndex) = getCircleAndOverlappingLine(results)
+
+            if (circleRect != null && sortedLines != null) {
+                println("Circle detected at: $circleRect")
+                println("Lines detected (sorted by Y-coordinate):")
+                sortedLines.forEachIndexed { index, line -> println("Line ${index + 1}: $line") }
+                Toast.makeText(this@MainActivity, "circle and line detected: ordering", Toast.LENGTH_SHORT).show()
+
+                if (overlappingLineIndex != null) {
+                    println("Circle overlaps with line $overlappingLineIndex")
+                    Toast.makeText(this@MainActivity, "circle overlaps with line $overlappingLineIndex", Toast.LENGTH_SHORT).show()
+                    val note = getNoteFromLineOverlap(overlappingLineIndex);
+                    Toast.makeText(this@MainActivity, "Note is $note", Toast.LENGTH_SHORT).show()
+                } else {
+                    println("Circle does not overlap with any line.")
+                    Toast.makeText(this@MainActivity, "circle DOES NOT overlap with line", Toast.LENGTH_SHORT).show()
+                    // todo add space code
+                    val spacePos = getCircleSpacePosition(circleRect, sortedLines)
+                    Toast.makeText(this@MainActivity, "circle in space $spacePos", Toast.LENGTH_SHORT).show()
+                    val noteSpace = getNoteFromSpaceOverlap(spacePos)
+                    Toast.makeText(this@MainActivity, "note is $noteSpace", Toast.LENGTH_SHORT).show()
+
+                }
+            } else {
+                println("Missing circle or fewer than 5 lines detected.")
+                Toast.makeText(this@MainActivity, "MISSING circle or fewer than 5 lines detected", Toast.LENGTH_SHORT).show()
+
+            }
 
             Toast.makeText(this@MainActivity, "Ready to view...", Toast.LENGTH_SHORT).show()
 
@@ -545,30 +593,6 @@ class MainActivity : AppCompatActivity() {
         return bwBitmap
     }
 
-    fun checkCircleAndLineDetected(detections: List<Detection>): Boolean {
-        // Flags to track detections
-        var circleDetected = false
-        var lineDetected = false
-
-        for ((i, obj) in detections.withIndex()) {
-            val box = obj.boundingBox // Assuming boundingBox is RectF
-
-            val filteredCategories = obj.categories.filter { it.score >= 0.3 }
-
-
-            if (filteredCategories.isNotEmpty()) {
-                // Draw labels
-                for ((j, category) in filteredCategories.withIndex()) {
-                    if (category.label == "circle")
-                        circleDetected = true
-                    else if (category.label == "line")
-                        lineDetected = true
-                    if (circleDetected && lineDetected) return true
-                }
-            }
-        }
-        return circleDetected && lineDetected
-    }
 
 
     // Check if a circle overlaps with any lines
@@ -593,6 +617,183 @@ class MainActivity : AppCompatActivity() {
         }
 
         // No overlap found
+        return null
+    }
+
+
+    fun getCircleAndLineRects(detections: List<Detection>): Pair<RectF?, RectF?> {
+        var circleRect: RectF? = null
+        var lineRect: RectF? = null
+
+        // Iterate through the detections
+        for (detection in detections) {
+            // Get the bounding box
+            val box = detection.boundingBox
+
+            // Get the label with the highest confidence
+            val label = detection.categories.maxByOrNull { it.score }?.label
+
+            when (label) {
+                "circle" -> if (circleRect == null) circleRect = box
+                "line" -> if (lineRect == null) lineRect = box
+            }
+
+            // Early exit if both are found
+            if (circleRect != null && lineRect != null) break
+        }
+
+        // Return the detected circle and line RectF objects
+        return Pair(circleRect, lineRect)
+    }
+
+    fun getCircleAndFiveLinesRects(detections: List<Detection>): Pair<RectF?, List<RectF>?> {
+        var circleRect: RectF? = null
+        val lineRects = mutableListOf<RectF>()
+
+        // Iterate through the detections
+        for (detection in detections) {
+            // Get the bounding box
+            val box = detection.boundingBox
+
+            // Get the label with the highest confidence
+            val label = detection.categories.maxByOrNull { it.score }?.label
+
+            when (label) {
+                "circle" -> if (circleRect == null) circleRect = box
+                "line" -> if (lineRects.size < 5) lineRects.add(box)
+            }
+
+            // Early exit if both the circle and 5 lines are found
+            if (circleRect != null && lineRects.size == 5) break
+        }
+
+        // Check if we have exactly 5 lines
+        return if (lineRects.size == 5) {
+            Pair(circleRect, lineRects)
+        } else {
+            Pair(circleRect, null) // Return null for lines if fewer than 5 are detected
+        }
+    }
+
+    fun getCircleAndOverlappingLine(
+        detections: List<Detection>
+    ): Triple<RectF?, List<RectF>?, Int?> {
+        var circleRect: RectF? = null
+        val lineRects = mutableListOf<RectF>()
+
+        // Iterate through the detections
+        for (detection in detections) {
+            // Get the bounding box
+            val box = detection.boundingBox
+
+            // Get the label with the highest confidence
+            val label = detection.categories.maxByOrNull { it.score }?.label
+
+            when (label) {
+                "circle" -> if (circleRect == null) circleRect = box
+                "line" -> if (lineRects.size < 5) lineRects.add(box)
+            }
+
+            // Early exit if both the circle and 5 lines are found
+            if (circleRect != null && lineRects.size == 5) break
+        }
+
+        // Ensure we have exactly 5 lines
+        if (lineRects.size != 5) return Triple(circleRect, null, null)
+
+        // Step 1: Sort the lines by their top (y-coordinate)
+        val sortedLines = lineRects.sortedBy { it.top }
+
+        // Step 2: Check which line the circle overlaps
+        val circle: RectF = circleRect!!;
+        val overlappingLineIndex = sortedLines.indexOfFirst { line ->
+            RectF.intersects(circle, line)
+        }.takeIf { it != -1 }?.plus(1) // Convert 0-based index to 1-based
+
+        // Return the circle, sorted lines, and overlapping line index
+        return Triple(circleRect, sortedLines, overlappingLineIndex)
+    }
+
+    fun getNoteFromLineOverlap(overlappingLineIndex: Int?): String? {
+        // Map line index to musical notes
+        val lineToNoteMap = mapOf(
+            1 to "F",
+            2 to "D",
+            3 to "B",
+            4 to "G",
+            5 to "E"
+        )
+
+        // Return the note for the given line index, or null if no overlap
+        return overlappingLineIndex?.let { lineToNoteMap[it] }
+    }
+
+    fun getNoteFromSpaceOverlap(spacePosition: Int?): String? {
+        // Map space positions to musical notes
+        val spaceToNoteMap = mapOf(
+            1 to "E",
+            2 to "C",
+            3 to "A",
+            4 to "F",
+            5 to "D"
+        )
+
+        // Return the note for the given space position, or null if not valid
+        return spacePosition?.let { spaceToNoteMap[it] }
+    }
+
+
+    fun getCirclePosition(circleRect: RectF, sortedLines: List<RectF>): Pair<String, Pair<Int, Int>?> {
+        // If the circle is above all lines, it's in Space 1
+        if (circleRect.bottom < sortedLines.first().top) {
+            return Pair("Space 1", null)
+        }
+
+        // If the circle is below all lines, it's in Space 6
+        if (circleRect.top > sortedLines.last().bottom) {
+            return Pair("Space 6", null)
+        }
+
+        // Otherwise, determine which two lines the circle is between
+        for (i in 0 until sortedLines.size - 1) {
+            val currentLine = sortedLines[i]
+            val nextLine = sortedLines[i + 1]
+
+            // Check if the circle's vertical center is between these two lines
+            val circleCenterY = (circleRect.top + circleRect.bottom) / 2
+            if (circleCenterY > currentLine.bottom && circleCenterY < nextLine.top) {
+                return Pair("Between", Pair(i + 1, i + 2)) // Return 1-based indices
+            }
+        }
+
+        // If no position is found, return null
+        return Pair("Unknown", null)
+    }
+
+    fun getCircleSpacePosition(circleRect: RectF, sortedLines: List<RectF>): Int? {
+        // If the circle is above all lines, it's in Space 1
+        if (circleRect.bottom < sortedLines.first().top) {
+            return 1
+        }
+
+        // If the circle is below all lines, it's in Space 6
+        if (circleRect.top > sortedLines.last().bottom) {
+            return 6
+        }
+
+        // Otherwise, determine which two lines the circle is between
+        for (i in 0 until sortedLines.size - 1) {
+            val currentLine = sortedLines[i]
+            val nextLine = sortedLines[i + 1]
+
+            // Check if the circle's vertical center is between these two lines
+            val circleCenterY = (circleRect.top + circleRect.bottom) / 2
+            if (circleCenterY > currentLine.bottom && circleCenterY < nextLine.top) {
+                return i + 2 // Return the space between lines as 2-based index
+            }
+        }
+
+        // If no position is found, return null
         return null
     }
 

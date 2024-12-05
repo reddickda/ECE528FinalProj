@@ -274,7 +274,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val detector = ObjectDetector.createFromFileAndOptions(
                 this, // the application context
-                "finetuned_for_testing.tflite", // must be same as the filename in assets folder
+                "finetuned_circle_with_metadata12-3.tflite", // must be same as the filename in assets folder
                 options
             )
 //            val rotatedBitmap = rotateBitmap(origbitmap, 90f)
@@ -331,21 +331,22 @@ class MainActivity : AppCompatActivity() {
                 println("Circle detected at: $circleRect")
                 println("Lines detected (sorted by Y-coordinate):")
                 sortedLines.forEachIndexed { index, line -> println("Line ${index + 1}: $line") }
-                Toast.makeText(this@MainActivity, "circle and line detected: ordering", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(this@MainActivity, "circle and line detected: ordering", Toast.LENGTH_SHORT).show()
 
                 if (overlappingLineIndex != null) {
                     println("Circle overlaps with line $overlappingLineIndex")
-                    Toast.makeText(this@MainActivity, "circle overlaps with line $overlappingLineIndex", Toast.LENGTH_SHORT).show()
-                    val note = getNoteFromLineOverlap(overlappingLineIndex);
+//                    Toast.makeText(this@MainActivity, "circle overlaps with line $overlappingLineIndex", Toast.LENGTH_SHORT).show()
+                    val note = getNoteFromLineOverlap(overlappingLineIndex);overlappingLineIndex
                     Toast.makeText(this@MainActivity, "Note is $note", Toast.LENGTH_SHORT).show()
                 } else {
                     println("Circle does not overlap with any line.")
-                    Toast.makeText(this@MainActivity, "circle DOES NOT overlap with line", Toast.LENGTH_SHORT).show()
+//                    Toast.makeText(this@MainActivity, "circle DOES NOT overlap with line", Toast.LENGTH_SHORT).show()
                     // todo add space code
                     val spacePos = getCircleSpacePosition(circleRect, sortedLines)
                     Toast.makeText(this@MainActivity, "circle in space $spacePos", Toast.LENGTH_SHORT).show()
                     val noteSpace = getNoteFromSpaceOverlap(spacePos)
                     Toast.makeText(this@MainActivity, "note is $noteSpace", Toast.LENGTH_SHORT).show()
+                    Log.d("post toast", "we post toast")
 
                 }
             } else {
@@ -730,6 +731,7 @@ class MainActivity : AppCompatActivity() {
 
     fun getNoteFromSpaceOverlap(spacePosition: Int?): String? {
         // Map space positions to musical notes
+        Log.d("here", "we here")
         val spaceToNoteMap = mapOf(
             1 to "E",
             2 to "C",
@@ -737,6 +739,9 @@ class MainActivity : AppCompatActivity() {
             4 to "F",
             5 to "D"
         )
+
+        Log.d("logging note", spacePosition?.let { spaceToNoteMap[it] }.toString())
+
 
         // Return the note for the given space position, or null if not valid
         return spacePosition?.let { spaceToNoteMap[it] }
